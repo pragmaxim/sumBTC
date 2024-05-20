@@ -4,14 +4,38 @@ use bitcoin::{
     blockdata::transaction::{Transaction, Txid},
     Address, Amount, Network,
 };
-
-use std::collections::HashMap;
+use std::str::FromStr;
+use std::{collections::HashMap, fmt};
 
 // Struct to represent a UTXO
 #[derive(Debug)]
 struct Utxo {
     address: String,
     value: Amount,
+}
+
+impl fmt::Display for Utxo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.address, self.value.to_sat())
+    }
+}
+
+impl FromStr for Utxo {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid format");
+        }
+
+        let address = parts[0].to_string();
+        let value = parts[1].parse::<u64>().map_err(|_| "Invalid value")?;
+        Ok(Utxo {
+            address,
+            value: Amount::from_sat(value),
+        })
+    }
 }
 
 // Define a struct to represent the Merkle Sum Tree database
@@ -48,17 +72,6 @@ impl MerkleSumTree {
             value: amount,
         };
         self.prev_txid_cache.insert((txid.clone(), tx_index), utxo)
-    }
-
-    // Method to simulate updating balances based on a transaction
-    pub fn update_balances(&mut self, txs: &[Transaction]) {
-        // process outputs of each transaction and inputs of all transactions except the first coinbase transaction
-        for tx in txs {
-            self.process_outputs(tx);
-            if !tx.is_coinbase() {
-                self.process_inputs(tx);
-            }
-        }
     }
 
     // Method to process the outputs of a transaction
@@ -101,6 +114,17 @@ impl MerkleSumTree {
                 }
             } else {
                 panic!("Address {address} not found in balance map");
+            }
+        }
+    }
+
+    // Method to simulate updating balances based on a transaction
+    pub fn update_balances(&mut self, txs: &[Transaction]) {
+        // process outputs of each transaction and inputs of all transactions except the first coinbase transaction
+        for tx in txs {
+            self.process_outputs(tx);
+            if !tx.is_coinbase() {
+                self.process_inputs(tx);
             }
         }
     }
