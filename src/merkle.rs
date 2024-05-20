@@ -65,17 +65,15 @@ impl MerkleSumTree {
     fn process_outputs(&mut self, tx: &Transaction) {
         let txid = tx.compute_txid();
         for (tx_index, out) in tx.output.iter().enumerate() {
-            if let Some(pk) = out.script_pubkey.clone().p2pk_public_key() {
+            if let Ok(address) =
+                Address::from_script(out.script_pubkey.as_script(), Network::Bitcoin)
+            {
+                self.insert_utxo(&txid, tx_index, &address.to_string(), out.value);
+            } else if let Some(pk) = out.script_pubkey.p2pk_public_key() {
                 let address = bitcoin::Address::p2pkh(pk.pubkey_hash(), bitcoin::Network::Bitcoin);
                 self.insert_utxo(&txid, tx_index, &address.to_string(), out.value);
             } else {
-                if let Ok(addr) =
-                    Address::from_script(out.script_pubkey.as_script(), Network::Bitcoin)
-                {
-                    self.insert_utxo(&txid, tx_index, &addr.to_string(), out.value);
-                } else {
-                    println!("Invalid script in tx {} of value {}", txid, out.value);
-                }
+                println!("Invalid script in tx {} of value {}", txid, out.value);
             }
         }
     }
