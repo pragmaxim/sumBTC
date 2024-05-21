@@ -1,7 +1,9 @@
+use bitcoin::Transaction;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use futures::stream::StreamExt;
+use sum_btc::model;
 use tokio::task;
-use tokio_stream::Stream;
+use tokio_stream::Stream; // Add this line to import the `model` module
 
 pub fn fetch_blocks(
     rpc_url: String,
@@ -9,7 +11,7 @@ pub fn fetch_blocks(
     password: String,
     start_height: u64,
     end_height: u64,
-) -> impl Stream<Item = Result<bitcoin::Block, String>> {
+) -> impl Stream<Item = Result<Vec<model::SumTx>, String>> {
     let heights = start_height..=end_height;
     tokio_stream::iter(heights)
         .map(move |height| {
@@ -26,15 +28,37 @@ pub fn fetch_blocks(
                 // Get the block by its hash
                 let block = rpc.get_block(&block_hash).map_err(|e| e.to_string())?;
 
-                Ok(block)
+                Ok::<bitcoin::Block, String>(block)
             })
         })
-        .buffered(16) // Process up to 16 blocks in parallel
-        .then(|result| async {
+        .buffered(32) // Process up to 16 blocks in parallel
+        // process_txs
+        .map(|result| async {
             match result {
-                Ok(Ok(block)) => Ok(block),
+                Ok(Ok(block)) => {
+                    let txs = block.txdata;
+                    let sum_txs = process_txs(txs).await;
+                    Ok(sum_txs)
+                }
                 Ok(Err(e)) => Err(e),
                 Err(e) => Err(e.to_string()),
             }
         })
+        .buffered(8)
+}
+
+pub async fn process_txs(txs: Vec<Transaction>) -> Vec<model::SumTx> {
+    let futures: Vec<tokio::task::JoinHandle<model::SumTx>> = txs
+        .into_iter()
+        .enumerate()
+        .map(|(index, tx)| tokio::task::spawn_blocking(move || model::SumTx::from((index, tx))))
+        .collect();
+
+    let sum_txs: Vec<model::SumTx> = futures::future::join_all(futures)
+        .await
+        .into_iter()
+        .map(|res| res.expect("Task panicked"))
+        .collect();
+
+    sum_txs
 }

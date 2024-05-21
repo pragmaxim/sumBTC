@@ -1,9 +1,9 @@
+use futures::StreamExt;
+use std::env;
+use std::str;
+
 mod merkle;
 mod rpc;
-use std::env;
-
-use futures::StreamExt;
-use std::str;
 
 #[tokio::main]
 async fn main() {
@@ -28,9 +28,9 @@ async fn main() {
         start_height,
         end_height,
     )
-    .map(|block| match block {
-        Ok(block) => {
-            merkle_sum_tree.update_balances(&block.txdata).unwrap();
+    .map(|txs| match txs {
+        Ok(transactions) => {
+            merkle_sum_tree.update_balances(transactions).unwrap();
         }
         Err(e) => {
             panic!("Error fetching block: {}", e);
@@ -38,6 +38,8 @@ async fn main() {
     })
     .count()
     .await;
+
+    println!("Top 10 richest addresses:");
 
     for (address, balance) in merkle_sum_tree
         .top_richest_address()
