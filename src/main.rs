@@ -3,11 +3,12 @@ mod rpc;
 use std::env;
 
 use futures::StreamExt;
+use std::str;
 
 #[tokio::main]
 async fn main() {
     // Create a new MerkleSumTree instance
-    let mut merkle_sum_tree = merkle::MerkleSumTree::new();
+    let mut merkle_sum_tree = merkle::MerkleSumTree::new("/tmp/grove.db").unwrap();
 
     let password = match env::var("BITCOIN_RPC_PASSWORD") {
         Ok(val) => val,
@@ -29,7 +30,7 @@ async fn main() {
     )
     .map(|block| match block {
         Ok(block) => {
-            merkle_sum_tree.update_balances(&block.txdata);
+            merkle_sum_tree.update_balances(&block.txdata).unwrap();
         }
         Err(e) => {
             panic!("Error fetching block: {}", e);
@@ -38,6 +39,16 @@ async fn main() {
     .count()
     .await;
 
-    // Print all address balances
-    merkle_sum_tree.print_balances();
+    for (address, balance) in merkle_sum_tree
+        .top_richest_address()
+        .unwrap()
+        .iter()
+        .take(10)
+    {
+        println!(
+            "Address: {}, Balance: {}",
+            str::from_utf8(&address).unwrap(),
+            balance
+        );
+    }
 }
