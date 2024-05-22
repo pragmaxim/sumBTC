@@ -8,6 +8,8 @@ use tokio_stream::Stream; // Add this line to import the `model` module
 
 use std::sync::Arc;
 
+type Height = u64;
+
 pub struct RpcClient {
     rpc_client: Arc<Client>,
 }
@@ -20,9 +22,9 @@ impl RpcClient {
 
     pub fn fetch_blocks(
         &self,
-        start_height: u64,
-        end_height: u64,
-    ) -> impl Stream<Item = Result<Vec<model::SumTx>, String>> + '_ {
+        start_height: Height,
+        end_height: Height,
+    ) -> impl Stream<Item = Result<(Height, Vec<model::SumTx>), String>> + '_ {
         let heights = start_height..=end_height;
         tokio_stream::iter(heights)
             .map(move |height| {
@@ -45,18 +47,16 @@ impl RpcClient {
                         let readable_date = datetime.format("%Y-%m-%d %H:%M:%S").to_string();
                         println!("Block @ {} : {} : {}", readable_date, height, block_hash);
                     }
-
-                    Ok::<bitcoin::Block, String>(block)
+                    Ok::<(u64, bitcoin::Block), String>((height, block))
                 })
             })
             .buffered(32) // Process up to 16 blocks in parallel
             // process_txs
             .map(|result| async {
                 match result {
-                    Ok(Ok(block)) => {
-                        let txs = block.txdata;
-                        let sum_txs = process_txs(txs).await;
-                        Ok(sum_txs)
+                    Ok(Ok((height, block))) => {
+                        let sum_txs = process_txs(block.txdata).await;
+                        Ok((height, sum_txs))
                     }
                     Ok(Err(e)) => Err(e),
                     Err(e) => Err(e.to_string()),
