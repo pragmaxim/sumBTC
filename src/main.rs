@@ -8,7 +8,7 @@ mod merkle;
 mod routes;
 mod rpc;
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
     // read bitcoin url from arguments
     let bitcoin_url = env::args()
@@ -34,6 +34,11 @@ async fn main() -> Result<(), std::io::Error> {
     let from_height: u64 = last_height + 1;
     let end_height: u64 = 844566;
 
+    println!("Starting http server");
+    let _ = HttpServer::new(|| App::new().service(routes::greet))
+        .bind(("127.0.0.1", 8080))?
+        .run();
+
     println!("Initiating syncing from {} to {}", from_height, end_height);
     let _ = rpc_client
         .fetch_blocks(from_height, end_height)
@@ -47,12 +52,7 @@ async fn main() -> Result<(), std::io::Error> {
             Err(e) => {
                 panic!("Error fetching block: {}", e);
             }
-        });
-
-    println!("Starting http  server");
-    let _ = HttpServer::new(|| App::new().service(routes::greet))
-        .bind(("127.0.0.1", 8080))?
-        .run()
+        })
         .await;
 
     return Ok(());
