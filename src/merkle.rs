@@ -3,7 +3,7 @@ use grovedb::{PathQuery, Query};
 use std::str;
 use std::vec;
 
-use sum_btc::model::{IndexedTxid, SumTx, Utxo};
+use sum_btc::model::{SumTx, Utxo};
 
 pub const BALANCE_LEAF: &[u8] = b"balance_leaf";
 
@@ -26,7 +26,7 @@ impl MerkleSumTree {
     // Method to insert or update a UTXO for an address
     fn insert_utxo(
         &self,
-        tx_id: &IndexedTxid,
+        tx_id: &str,
         utxo: &Utxo,
         db_tx: &grovedb::Transaction,
     ) -> Result<(), grovedb::Error> {
@@ -43,20 +43,17 @@ impl MerkleSumTree {
         self.db
             .insert(
                 &[BALANCE_LEAF, addr_bytes],
-                tx_id.to_string().as_bytes(),
+                tx_id.as_bytes(),
                 Element::new_sum_item(utxo.value as i64),
                 None,
                 Some(db_tx),
             )
             .unwrap()?;
 
+        // concatenate utxo.index with tx_id into aux_key simple string variable
+        let aux_key = format!("{}:{}", utxo.index, tx_id);
         self.db
-            .put_aux(
-                tx_id.to_string(),
-                utxo.to_string().as_bytes(),
-                None,
-                Some(db_tx),
-            )
+            .put_aux(aux_key, utxo.to_string().as_bytes(), None, Some(db_tx))
             .unwrap()?;
         Ok(())
     }
@@ -68,7 +65,7 @@ impl MerkleSumTree {
         db_tx: &grovedb::Transaction,
     ) -> Result<(), grovedb::Error> {
         for utxo in sum_tx.outs.iter() {
-            self.insert_utxo(&sum_tx.indexed_txid, utxo, db_tx)?;
+            self.insert_utxo(&sum_tx.txid, utxo, db_tx)?;
         }
         Ok(())
     }
@@ -80,16 +77,11 @@ impl MerkleSumTree {
         db_tx: &grovedb::Transaction,
     ) -> Result<(), grovedb::Error> {
         for indexed_txid in sum_tx.ins {
-            if let Some(utxo_str) = self
-                .db
-                .get_aux(indexed_txid.to_string(), Some(db_tx))
-                .unwrap()?
-            {
+            let aux_key = indexed_txid.to_string();
+            if let Some(utxo_str) = self.db.get_aux(&aux_key, Some(db_tx)).unwrap()? {
                 let utxo: Utxo = Utxo::try_from(utxo_str)?;
 
-                self.db
-                    .delete_aux(indexed_txid.to_string(), None, Some(db_tx))
-                    .unwrap()?;
+                self.db.delete_aux(aux_key, None, Some(db_tx)).unwrap()?;
 
                 let addr_bytes = utxo.address.as_bytes();
 

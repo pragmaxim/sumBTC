@@ -5,7 +5,7 @@ use std::{fmt, str};
 #[derive(Debug)]
 pub struct SumTx {
     pub is_coinbase: bool,
-    pub indexed_txid: IndexedTxid,
+    pub txid: String,
     pub ins: Vec<IndexedTxid>,
     pub outs: Vec<Utxo>,
 }
@@ -14,10 +14,7 @@ impl From<(usize, Transaction)> for SumTx {
     fn from(tx: (usize, Transaction)) -> Self {
         SumTx {
             is_coinbase: tx.1.is_coinbase(),
-            indexed_txid: IndexedTxid {
-                index: tx.0,
-                tx_id: tx.1.compute_txid().to_string(),
-            },
+            txid: tx.1.compute_txid().to_string(),
             ins: tx
                 .1
                 .input
@@ -31,7 +28,8 @@ impl From<(usize, Transaction)> for SumTx {
                 .1
                 .output
                 .iter()
-                .flat_map(|out| {
+                .enumerate()
+                .flat_map(|(out_index, out)| {
                     let address_opt = if let Ok(address) =
                         Address::from_script(out.script_pubkey.as_script(), Network::Bitcoin)
                     {
@@ -52,6 +50,7 @@ impl From<(usize, Transaction)> for SumTx {
 
                     match address_opt {
                         Some(address) => Some(Utxo {
+                            index: out_index,
                             address: address.to_string(),
                             value: out.value.to_sat(),
                         }),
@@ -65,13 +64,14 @@ impl From<(usize, Transaction)> for SumTx {
 
 #[derive(Debug)]
 pub struct Utxo {
+    pub index: usize,
     pub address: String,
     pub value: u64,
 }
 
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.address, self.value)
+        write!(f, "{}:{}:{}", self.index, self.address, self.value)
     }
 }
 
@@ -96,18 +96,25 @@ impl FromStr for Utxo {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() != 2 {
+        if parts.len() != 3 {
             return Err(grovedb::Error::CorruptedData(format!(
                 "Invalid UTXO : {}",
                 s
             )));
         }
 
-        let address = parts[0].to_string();
-        let value = parts[1].parse::<u64>().map_err(|err| {
+        let out_index = parts[0].parse::<usize>().map_err(|err| {
+            grovedb::Error::CorruptedData(format!("Invalid UTXO index : {} {}", parts[0], err))
+        })?;
+        let address = parts[1].to_string();
+        let value = parts[2].parse::<u64>().map_err(|err| {
             grovedb::Error::CorruptedData(format!("Invalid UTXO value : {} {}", parts[1], err))
         })?;
-        Ok(Utxo { address, value })
+        Ok(Utxo {
+            index: out_index,
+            address,
+            value,
+        })
     }
 }
 
