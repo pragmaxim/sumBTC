@@ -1,5 +1,6 @@
 use bitcoin::Transaction;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use chrono::DateTime;
 use futures::stream::StreamExt;
 use sum_btc::model;
 use tokio::task;
@@ -28,6 +29,13 @@ pub fn fetch_blocks(
                 // Get the block by its hash
                 let block = rpc.get_block(&block_hash).map_err(|e| e.to_string())?;
 
+                // print the block hash if height is divisible by 1000
+                if height % 1000 == 0 {
+                    let datetime = DateTime::from_timestamp(block.header.time as i64, 0).unwrap();
+                    let readable_date = datetime.format("%Y-%m-%d %H:%M:%S").to_string();
+                    println!("Block @ {} : {} : {}", readable_date, height, block_hash);
+                }
+
                 Ok::<bitcoin::Block, String>(block)
             })
         })
@@ -44,7 +52,7 @@ pub fn fetch_blocks(
                 Err(e) => Err(e.to_string()),
             }
         })
-        .buffered(8)
+        .buffered(32)
 }
 
 pub async fn process_txs(txs: Vec<Transaction>) -> Vec<model::SumTx> {
