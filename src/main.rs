@@ -1,12 +1,15 @@
+use actix_web::App;
+use actix_web::HttpServer;
+use futures::future;
 use futures::StreamExt;
 use std::env;
-use std::str;
 
 mod merkle;
+mod routes;
 mod rpc;
 
-#[tokio::main]
-async fn main() {
+#[actix_web::main]
+async fn main() -> Result<(), std::io::Error> {
     // read bitcoin url from arguments
     let bitcoin_url = env::args()
         .nth(1)
@@ -20,8 +23,7 @@ async fn main() {
     ) {
         (Ok(user), Ok(pass)) => (user, pass),
         _ => {
-            eprintln!("Error: Bitcoin RPC BITCOIN_RPC_PASSWORD or BITCOIN_RPC_USERNAME environment variable not set");
-            return;
+            panic!("Error: Bitcoin RPC BITCOIN_RPC_PASSWORD or BITCOIN_RPC_USERNAME environment variable not set");
         }
     };
 
@@ -33,33 +35,25 @@ async fn main() {
     let end_height: u64 = 844566;
 
     println!("Initiating syncing from {} to {}", from_height, end_height);
-    rpc_client
+    let _ = rpc_client
         .fetch_blocks(from_height, end_height)
-        .map(|result| match result {
+        .for_each(|result| match result {
             Ok((height, transactions)) => {
                 merkle_sum_tree
                     .update_balances(height, transactions)
                     .unwrap();
+                future::ready(())
             }
             Err(e) => {
                 panic!("Error fetching block: {}", e);
             }
-        })
-        .count()
+        });
+
+    println!("Starting http  server");
+    let _ = HttpServer::new(|| App::new().service(routes::greet))
+        .bind(("127.0.0.1", 8080))?
+        .run()
         .await;
 
-    println!("Top 10 richest addresses:");
-
-    for (address, balance) in merkle_sum_tree
-        .top_richest_address()
-        .unwrap()
-        .iter()
-        .take(10)
-    {
-        println!(
-            "Address: {}, Balance: {}",
-            str::from_utf8(&address).unwrap(),
-            balance
-        );
-    }
+    return Ok(());
 }
