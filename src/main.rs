@@ -21,23 +21,24 @@ async fn main() {
     let start_height = 0;
     let end_height = 127000; // For example, to get blocks from height 0 to 10
 
-    rpc::fetch_blocks(
+    let rpc_client = rpc::RpcClient::new(
         "http://127.0.0.1:8332".to_string(),
         "pragmaxim".to_string(),
         password,
-        start_height,
-        end_height,
-    )
-    .map(|txs| match txs {
-        Ok(transactions) => {
-            merkle_sum_tree.update_balances(transactions).unwrap();
-        }
-        Err(e) => {
-            panic!("Error fetching block: {}", e);
-        }
-    })
-    .count()
-    .await;
+    );
+
+    rpc_client
+        .fetch_blocks(start_height, end_height)
+        .map(|txs| match txs {
+            Ok(transactions) => {
+                merkle_sum_tree.update_balances(transactions).unwrap();
+            }
+            Err(e) => {
+                panic!("Error fetching block: {}", e);
+            }
+        })
+        .count()
+        .await;
 
     println!("Top 10 richest addresses:");
 
