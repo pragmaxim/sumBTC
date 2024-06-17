@@ -69,8 +69,7 @@ impl RpcClient {
 async fn process_txs(txs: Vec<Transaction>) -> Vec<model::SumTx> {
     let futures: Vec<tokio::task::JoinHandle<model::SumTx>> = txs
         .into_iter()
-        .enumerate()
-        .map(|(index, tx)| tokio::task::spawn_blocking(move || model::SumTx::from((index, tx))))
+        .map(|tx| tokio::task::spawn_blocking(move || model::SumTx::from(tx)))
         .collect();
 
     let sum_txs: Vec<model::SumTx> = futures::future::join_all(futures)

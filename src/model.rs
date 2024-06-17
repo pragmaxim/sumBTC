@@ -10,13 +10,12 @@ pub struct SumTx {
     pub outs: Vec<Utxo>,
 }
 
-impl From<(usize, Transaction)> for SumTx {
-    fn from(tx: (usize, Transaction)) -> Self {
+impl From<Transaction> for SumTx {
+    fn from(tx: Transaction) -> Self {
         SumTx {
-            is_coinbase: tx.1.is_coinbase(),
-            txid: tx.1.compute_txid().to_string(),
+            is_coinbase: tx.is_coinbase(),
+            txid: tx.compute_txid().to_string(),
             ins: tx
-                .1
                 .input
                 .iter()
                 .map(|input| IndexedTxid {
@@ -25,7 +24,6 @@ impl From<(usize, Transaction)> for SumTx {
                 })
                 .collect(),
             outs: tx
-                .1
                 .output
                 .iter()
                 .enumerate()
@@ -42,7 +40,7 @@ impl From<(usize, Transaction)> for SumTx {
                     } else {
                         println!(
                             "Invalid script in tx {} of value {}",
-                            tx.1.compute_txid(),
+                            tx.compute_txid(),
                             out.value
                         );
                         None

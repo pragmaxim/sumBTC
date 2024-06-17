@@ -44,21 +44,21 @@ impl MerkleSumTree {
             )
             .unwrap()?;
 
+        let tx_id_with_index = format!("{}:{}", utxo.index, tx_id);
         self.db
             .insert(
                 &[BALANCE_LEAF, addr_bytes],
-                tx_id.as_bytes(),
+                tx_id_with_index.as_bytes(),
                 Element::new_sum_item(utxo.value as i64),
                 None,
                 Some(db_tx),
             )
             .unwrap()?;
 
-        let tx_cache_key = format!("{}:{}", utxo.index, tx_id);
         self.db
             .insert(
                 &[TX_CACHE_LEAF],
-                tx_cache_key.as_bytes(),
+                tx_id_with_index.as_bytes(),
                 Element::new_item(utxo.to_string().into_bytes()),
                 None,
                 Some(db_tx),
