@@ -1,8 +1,8 @@
+use crate::model;
 use bitcoin::Transaction;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use chrono::DateTime;
 use futures::stream::StreamExt;
-use sum_btc::model;
 use tokio::task;
 use tokio_stream::Stream; // Add this line to import the `model` module
 

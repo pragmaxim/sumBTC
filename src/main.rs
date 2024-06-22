@@ -3,8 +3,8 @@ use actix_web::HttpServer;
 use futures::future;
 use futures::StreamExt;
 use std::env;
-
 mod merkle;
+mod model;
 mod routes;
 mod rpc;
 

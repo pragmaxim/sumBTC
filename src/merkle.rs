@@ -1,8 +1,8 @@
+use crate::model::{SumTx, Utxo};
 use grovedb::{Element, GroveDb};
 use grovedb::{PathQuery, Query};
 use std::str::{self, FromStr};
 use std::vec;
-use sum_btc::model::{SumTx, Utxo};
 
 pub const BALANCE_LEAF: &[u8] = b"balance_leaf";
 pub const TX_CACHE_LEAF: &[u8] = b"tx_cache_leaf";
